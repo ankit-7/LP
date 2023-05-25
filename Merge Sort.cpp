@@ -1,108 +1,109 @@
 #include <iostream>
-#include <chrono>
+#include <vector>
 #include <omp.h>
+using namespace std;
 
-void merge(int* arr, int left, int mid, int right) {
+void merge(vector<int>& arr, int left, int mid, int right) {
     int n1 = mid - left + 1;
     int n2 = right - mid;
 
-    int* L = new int[n1];
-    int* R = new int[n2];
+    vector<int> leftArr(n1), rightArr(n2);
 
-    for (int i = 0; i < n1; ++i)
-        L[i] = arr[left + i];
-    for (int j = 0; j < n2; ++j)
-        R[j] = arr[mid + 1 + j];
+    for (int i = 0; i < n1; i++) {
+        leftArr[i] = arr[left + i];
+    }
 
-    int i = 0;
-    int j = 0;
-    int k = left;
+    for (int j = 0; j < n2; j++) {
+        rightArr[j] = arr[mid + 1 + j];
+    }
+
+    int i = 0, j = 0, k = left;
 
     while (i < n1 && j < n2) {
-        if (L[i] <= R[j]) {
-            arr[k] = L[i];
+        if (leftArr[i] <= rightArr[j]) {
+            arr[k] = leftArr[i];
             i++;
-        }
-        else {
-            arr[k] = R[j];
+        } else {
+            arr[k] = rightArr[j];
             j++;
         }
         k++;
     }
 
     while (i < n1) {
-        arr[k] = L[i];
+        arr[k] = leftArr[i];
         i++;
         k++;
     }
 
     while (j < n2) {
-        arr[k] = R[j];
+        arr[k] = rightArr[j];
         j++;
         k++;
     }
-
-    delete[] L;
-    delete[] R;
 }
 
-void mergeSortSequential(int* arr, int left, int right) {
+void merge_sort_parallel(vector<int>& arr, int left, int right) {
     if (left < right) {
         int mid = left + (right - left) / 2;
-        mergeSortSequential(arr, left, mid);
-        mergeSortSequential(arr, mid + 1, right);
-        merge(arr, left, mid, right);
-    }
-}
 
-void mergeSortParallel(int* arr, int left, int right) {
-    if (left < right) {
-        int mid = left + (right - left) / 2;
         #pragma omp parallel sections
         {
             #pragma omp section
             {
-                mergeSortParallel(arr, left, mid);
+                merge_sort_parallel(arr, left, mid);
             }
+
             #pragma omp section
             {
-                mergeSortParallel(arr, mid + 1, right);
+                merge_sort_parallel(arr, mid + 1, right);
             }
         }
+
         merge(arr, left, mid, right);
+
+        #pragma omp master
+        {
+            cout << "Phase: ";
+            for (int i = left; i <= right; i++) {
+                cout << arr[i] << " ";
+            }
+            cout << endl;
+        }
     }
 }
 
-void printArray(int* arr, int size) {
-    for (int i = 0; i < size; ++i) {
-        std::cout << arr[i] << " ";
+void print_array(const vector<int>& arr) {
+    for (int num : arr) {
+        cout << num << " ";
     }
-    std::cout << std::endl;
+    cout << endl;
 }
 
 int main() {
-    const int size = 10000;
-    int arr[size];
-    for (int i = 0; i < size; ++i) {
-        arr[i] = size - i;
-    }
+    vector<int> arr = {9, 5, 7, 1, 3, 2, 8, 6, 4};
+    int n = arr.size();
 
-    // Parallel Merge Sort
-    auto start = std::chrono::high_resolution_clock::now();
-    mergeSortParallel(arr, 0, size - 1);
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> duration = end - start;
-    std::cout << "Parallel Merge Sort Time: " << duration.count() << " seconds" << std::endl;
+    cout << "Original Array: ";
+    print_array(arr);
 
-    // Sequential Merge Sort
-    for (int i = 0; i < size; ++i) {
-        arr[i] = size - i;
-    }
-    start = std::chrono::high_resolution_clock::now();
-    mergeSortSequential(arr, 0, size - 1);
-    end = std::chrono::high_resolution_clock::now();
-    duration = end - start;
-    std::cout << "Sequential Merge Sort Time: " << duration.count() << " seconds" << std::endl;
+    vector<int> arr_seq = arr;
+    double start_time_seq = omp_get_wtime();
+    merge_sort_parallel(arr_seq, 0, n - 1);
+    double end_time_seq = omp_get_wtime();
+
+    cout << "Sorted Array (Sequential): ";
+    print_array(arr_seq);
+    cout << "Time Taken (Sequential): " << end_time_seq - start_time_seq << " seconds" << endl;
+
+    vector<int> arr_par = arr;
+    double start_time_par = omp_get_wtime();
+    merge_sort_parallel(arr_par, 0, n - 1);
+    double end_time_par = omp_get_wtime();
+
+    cout << "Sorted Array (Parallel): ";
+    print_array(arr_par);
+    cout << "Time Taken (Parallel): " << end_time_par - start_time_par << " seconds" << endl;
 
     return 0;
 }
